@@ -1,0 +1,61 @@
+name: Flatpak Local Repo Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_id:
+        description: 'Flatpak Package ID (e.g., org.gnome.gedit)'
+        required: true
+        default: 'org.gnome.gedit'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak zip
+
+      - name: Configure Flathub
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak remote-modify --user --collection-id=org.flathub.Stable flathub
+
+      - name: Install Package
+        run: |
+          flatpak install --user -y flathub ${{ github.event.inputs.package_id }}
+
+      - name: Export Local Repository
+        run: |
+          TARGET_DIR="/tmp/flatpak-local"
+          mkdir -p "$TARGET_DIR"
+          
+          # Get all installed refs
+          REFS=$(flatpak --user list --columns=ref)
+          echo "Exporting: $REFS"
+          
+          flatpak --user create-usb "$TARGET_DIR" $REFS
+
+      - name: Zip Output
+        run: |
+          cd /tmp/flatpak-local
+          zip -r ${{ github.workspace }}/flatpak-local.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flatpak-export-${{ github.event.inputs.package_id }}-${{ github.run_number }}
+          name: Flatpak Export - ${{ github.event.inputs.package_id }}
+          body: |
+             Local Flatpak repository for `${{ github.event.inputs.package_id }}`.
+             This bundle includes the application and all required runtimes.
+          files: flatpak-local.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
