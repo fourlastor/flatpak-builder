@@ -46,7 +46,7 @@ jobs:
       - name: Zip Output
         run: |
           cd /tmp/flatpak-local
-          zip -r ${{ github.workspace }}/flatpak-local.zip .
+          zip -rq ${{ github.workspace }}/flatpak-local.zip .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
